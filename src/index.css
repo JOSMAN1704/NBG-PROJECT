@@ -1,0 +1,89 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-indigo-deep: #0A0A1B;
+  --color-emerald-money: #10B981;
+  --color-raspberry-alert: #E11D48;
+  --color-indigo-accent: #4F46E5;
+  
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0A0A1B] text-white antialiased overflow-hidden cursor-grab active:cursor-grabbing;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-white/10 backdrop-blur-2xl border border-white/20 rounded-2xl shadow-2xl;
+  }
+  
+  .glass-card {
+    @apply bg-black/40 backdrop-blur-2xl border-2 rounded-3xl transition-all duration-500 shadow-2xl;
+  }
+  
+  .neon-border-emerald {
+    @apply border-emerald-500/40 shadow-[0_0_50px_rgba(16,185,129,0.1)] ring-1 ring-emerald-500/20;
+  }
+  
+  .neon-border-indigo {
+    @apply border-indigo-500/40 shadow-[0_0_50px_rgba(79,70,229,0.1)] ring-1 ring-indigo-500/20;
+  }
+  
+  .neon-border-raspberry {
+    @apply border-rose-500/40 shadow-[0_0_50px_rgba(225,29,72,0.1)] ring-1 ring-rose-500/20;
+  }
+}
+
+.infinite-canvas-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: #0A0A1B;
+  width: 100vw;
+  height: 100vh;
+}
+
+.berry-overlay {
+  position: fixed;
+  inset: 0;
+  background: url('https://images.unsplash.com/photo-1510134444530-58957f8976df?auto=format&fit=crop&q=80&w=2000') center/cover no-repeat;
+  filter: blur(10px) brightness(0.3);
+  z-index: -2;
+  opacity: 0.6;
+}
+
+.glow-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 30% 40%, rgba(79, 70, 229, 0.15) 0%, transparent 40%),
+              radial-gradient(circle at 70% 60%, rgba(79, 70, 229, 0.15) 0%, transparent 40%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.grid-overlay {
+  background-image: linear-gradient(to right, rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Custom Scrollbar for the Glass Panes */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBG Architectural Solutions - Standalone</title>
+    
+    <!-- Dependencies via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/Draggable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        emerald: {
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #05070a;
+            color: white;
+            overflow: hidden;
+            margin: 0;
+            user-select: none;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+        }
+
+        .node-card {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+
+        .node-card:hover {
+            border-color: rgba(16, 185, 129, 0.5);
+            background: rgba(16, 185, 129, 0.05);
+            transform: translateY(-5px);
+        }
+
+        /* Animated Grid Background */
+        .bg-grid {
+            position: fixed;
+            inset: -100%;
+            width: 300%;
+            height: 300%;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Animated blobs */
+        .blob {
+            position: fixed;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            animation: move 20s infinite alternate ease-in-out;
+        }
+
+        @keyframes move {
+            from { transform: translate(-10%, -10%); }
+            to { transform: translate(20%, 20%); }
+        }
+
+        .scroll-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Prezi-style Viewport */
+        #viewport {
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+        }
+
+        #canvas {
+            position: relative;
+            transform-origin: center;
+            width: 0;
+            height: 0;
+            will-change: transform;
+        }
+
+        .perspective-active {
+            perspective: 1000px;
+        }
+
+        .perspective-active .node-card:hover {
+            transform: translateY(-15px) rotateX(8deg) rotateY(5deg) translateZ(50px);
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="bg-grid"></div>
+        <div class="blob"></div>
+        <div class="blob" style="animation-delay: -10s; left: 50%; background: radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%);"></div>
+
+        <!-- HUD Layer -->
+        <div class="fixed top-0 left-0 w-full p-8 flex justify-between items-start z-50 pointer-events-none">
+            <div class="pointer-events-auto">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                        <i data-lucide="shield-check" class="text-black"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-black tracking-tighter text-white uppercase italic">NBG Solutions</h1>
+                        <p class="text-[10px] uppercase tracking-[0.4em] text-emerald-400 font-bold">Architectural Blueprint v2.0</p>
+                    </div>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="glass-panel p-2 flex items-center gap-3 w-80">
+                    <i data-lucide="search" class="w-4 h-4 text-white/30 ml-2"></i>
+                    <input 
+                        type="text" 
+                        v-model="searchQuery"
+                        placeholder="BUSCAR MÓDULO O FUNCIÓN..." 
+                        class="bg-transparent border-none outline-none text-xs font-mono uppercase w-full py-2 placeholder:text-white/20"
+                    >
+                </div>
+            </div>
+
+            <!-- Next Steps Button -->
+            <div class="pointer-events-auto relative">
+                <button 
+                    @click="showNextSteps = !showNextSteps"
+                    :class="[
+                        'px-8 py-4 flex items-center gap-4 transition-all rounded-2xl border-2 font-black uppercase tracking-[0.2em] shadow-2xl',
+                        showNextSteps ? 'bg-rose-600 border-rose-400' : 'bg-emerald-600/90 border-emerald-400 animate-pulse'
+                    ]"
+                >
+                    <i data-lucide="list-checks" class="w-5 h-5"></i>
+                    <span class="text-sm">Próximos Pasos</span>
+                </button>
+
+                <div v-if="showNextSteps" class="absolute top-full right-0 mt-4 w-96 glass-panel p-8 space-y-6 ring-2 ring-emerald-500/30">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-6 bg-emerald-500 rounded-full"></div>
+                        <h4 class="text-xs font-black uppercase text-emerald-400 tracking-[0.3em]">Hoja de Ruta Implementación</h4>
+                    </div>
+                    <div class="space-y-4">
+                        <div v-for="(step, i) in nextSteps" :key="i" class="flex gap-4 text-sm text-white/80 items-start group">
+                            <i data-lucide="arrow-right" class="w-4 h-4 mt-1 text-emerald-500"></i>
+                            <span class="font-light">{{ step }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3D Toggle -->
+        <div class="fixed top-8 left-1/2 -translate-x-1/2 z-50 pointer-events-auto">
+            <button 
+                @click="is3D = !is3D"
+                :class="[
+                    'px-6 py-2 border rounded-full text-xs font-bold uppercase transition-all',
+                    is3D ? 'bg-emerald-500 text-black border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-white/10 border-white/20 text-white/70 hover:bg-white/20'
+                ]"
+            >
+                Exploración 3D: {{ is3D ? 'Activada' : 'Desactivada' }}
+            </button>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="fixed bottom-32 left-8 z-50 flex flex-col gap-2 pointer-events-auto">
+            <button @click="zoom(0.2)" class="glass-panel p-3 hover:bg-emerald-500 hover:text-black transition-all">
+                <i data-lucide="plus" class="w-4.5 h-4.5"></i>
+            </button>
+            <button @click="zoom(-0.2)" class="glass-panel p-3 hover:bg-emerald-500 hover:text-black transition-all">
+                <i data-lucide="minus" class="w-4.5 h-4.5"></i>
+            </button>
+            <button @click="resetView" class="glass-panel p-3 hover:bg-emerald-500 hover:text-black transition-all">
+                <i data-lucide="maximize" class="w-4.5 h-4.5"></i>
+            </button>
+        </div>
+
+        <!-- Right Rail -->
+        <div class="fixed right-8 top-1/2 -translate-y-1/2 flex flex-col space-y-6 z-50 pointer-events-auto">
+            <div @click="goTo(-900, 0)" class="group relative flex items-center justify-end">
+                <div class="w-3 h-3 bg-emerald-500 rounded-full cursor-pointer ring-4 ring-emerald-500/20"></div>
+                <span class="absolute right-8 text-[10px] uppercase opacity-0 group-hover:opacity-100 whitespace-nowrap bg-emerald-500 px-2 py-1 rounded text-black font-bold transition-all">MÓDULO MXN</span>
+            </div>
+            <div @click="resetView" class="group relative flex items-center justify-end">
+                <div class="w-3 h-3 bg-white/20 rounded-full cursor-pointer hover:ring-4 hover:ring-white/10"></div>
+                <span class="absolute right-8 text-[10px] uppercase opacity-0 group-hover:opacity-100 whitespace-nowrap bg-white/20 px-2 py-1 rounded transition-all">VISTA CENTRAL</span>
+            </div>
+            <div @click="goTo(900, 0)" class="group relative flex items-center justify-end">
+                <div class="w-3 h-3 bg-indigo-500 rounded-full cursor-pointer hover:ring-4 hover:ring-indigo-500/20"></div>
+                <span class="absolute right-8 text-[10px] uppercase opacity-0 group-hover:opacity-100 whitespace-nowrap bg-indigo-500 px-2 py-1 rounded text-white font-bold transition-all">MÓDULO USD</span>
+            </div>
+        </div>
+
+        <!-- Main Viewport -->
+        <div id="viewport" ref="viewport">
+            <div id="canvas" :class="{ 'perspective-active': is3D }" ref="canvas">
+                
+                <!-- Financial Nodes -->
+                <div 
+                    v-for="node in filteredNodes" 
+                    :key="node.id"
+                    class="absolute node-card glass-panel p-8 w-96 flex flex-col gap-6"
+                    :style="{ left: node.x + 'px', top: node.y + 'px', transform: 'translate(-50%, -50%)' }"
+                    @click="selectedNode = node"
+                >
+                    <div class="flex justify-between items-start">
+                        <div class="p-4 rounded-xl bg-white/5 border border-white/10">
+                            <i :data-lucide="node.icon" class="w-8 h-8 text-emerald-400"></i>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-[8px] font-mono text-white/30 uppercase tracking-widest">Módulo_ID: {{ node.id.split('-').join('_').toUpperCase() }}</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-1">Categoría: {{ node.category }}</h4>
+                        <h3 class="text-2xl font-bold tracking-tight text-white leading-tight">{{ node.title }}</h3>
+                    </div>
+
+                    <p class="text-xs text-white/50 leading-relaxed font-light">{{ node.description }}</p>
+
+                    <div class="flex items-center justify-between pt-6 border-t border-white/5">
+                        <span class="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Ver detalle de apartado</span>
+                        <i data-lucide="external-link" class="w-3 h-3 text-white/20"></i>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Details Panel Overlay -->
+        <transition 
+            enter-active-class="transition duration-300 ease-out"
+            enter-from-class="opacity-0"
+            enter-to-class="opacity-100"
+            leave-active-class="transition duration-200 ease-in"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+        >
+            <div v-if="selectedNode" class="fixed inset-0 z-[200] flex items-center justify-end p-8 bg-black/40 backdrop-blur-md">
+                <div @click="selectedNode = null" class="absolute inset-0"></div>
+                <div 
+                    class="relative w-full max-w-2xl h-full glass-panel overflow-hidden flex flex-col border-l border-emerald-500/20 shadow-[-50px_0_100px_rgba(0,0,0,0.5)]"
+                >
+                    <!-- Header -->
+                    <div class="p-10 border-b border-white/5 flex justify-between items-center">
+                        <div class="flex items-center gap-6">
+                            <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center">
+                                <i :data-lucide="selectedNode.icon" class="w-8 h-8 text-emerald-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-4xl font-black tracking-tighter text-white uppercase italic leading-none mb-2">
+                                    {{ selectedNode.title }}
+                                </h3>
+                                <div class="flex items-center gap-3">
+                                    <span class="px-3 py-1 rounded bg-emerald-500 text-black text-[10px] font-black uppercase tracking-widest">
+                                        {{ selectedNode.category }}
+                                    </span>
+                                    <span class="text-[10px] text-white/30 font-mono tracking-widest">
+                                        ID: {{ selectedNode.id }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="flex-1 overflow-y-auto p-10 space-y-12 scroll-hide">
+                        <div class="space-y-4">
+                            <h4 class="text-xs font-black uppercase text-emerald-400 tracking-[0.3em]">Especificaciones Técnicas</h4>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div v-for="(detail, i) in selectedNode.technicalDetails" :key="i" class="p-5 bg-white/5 border border-white/10 rounded-xl hover:border-emerald-500/30 transition-colors group">
+                                    <div class="flex gap-4">
+                                        <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2 shrink-0 group-hover:scale-150 transition-transform"></div>
+                                        <p class="text-sm text-white/70 font-light leading-relaxed">{{ detail }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div v-if="selectedNode.alert" class="p-6 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex gap-5">
+                            <i data-lucide="alert-triangle" class="text-rose-500 shrink-0 mt-1"></i>
+                            <div>
+                                <h5 class="text-rose-500 text-[10px] font-black uppercase tracking-widest mb-1">Advertencia de Seguridad</h5>
+                                <p class="text-sm font-medium text-rose-100/80">{{ selectedNode.alert }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="p-10 border-t border-white/5">
+                        <button 
+                            @click="selectedNode = null"
+                            class="w-full bg-white/5 hover:bg-white/10 text-white font-bold py-4 rounded-xl uppercase tracking-widest text-xs border border-white/10 transition-all flex items-center justify-center gap-2"
+                        >
+                            Volver
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+    </div>
+
+    <!-- STOP HERE - NEXT IS SCRIPT -->
+    <script>
+        const { createApp, ref, computed, onMounted, watch } = Vue;
+
+        const NBG_ACCOUNTING_DATA = [
+            {
+                id: 'modulo-mxn',
+                title: 'Módulo de Contabilidad MXN',
+                category: 'MXN',
+                x: -900,
+                y: -400,
+                icon: 'landmark',
+                description: 'Sistema base de registro en Moneda Nacional bajo normativa local y filtros SAT.',
+                technicalDetails: [
+                    'Registro de transacciones en Pesos (MXN) con precisión fiscal.',
+                    'Sincronización automática con pólizas de Odoo v19.',
+                    'Alineación total con catálogos y reglas del SAT (2 decimales).',
+                    'Base de datos para la conversión histórica multimoneda.'
+                ]
+            },
+            {
+                id: 'fixed-assets',
+                title: 'Histórico: Activos e Inventarios',
+                category: 'MXN',
+                x: -900,
+                y: 400,
+                icon: 'archive',
+                description: 'Tratamiento de cuentas no revaluables y depreciación lineal estable.',
+                technicalDetails: [
+                    'Depreciación mensual calculada con la FX histórica del activo.',
+                    'Evita variaciones irreales en USD mes tras mes por volatilidad.',
+                    'Matriz de tratamiento: Inventarios, Activos Fijos y Pasivos ROU.',
+                    'Ejecución mediante asientos contables específicos en Odoo.'
+                ]
+            },
+            {
+                id: 'banxico-api',
+                title: 'Integración Banxico (Diaria)',
+                category: 'CORE',
+                x: 0,
+                y: -500,
+                icon: 'cloud-lightning',
+                description: 'Fuente oficial de tipos de cambio con lógica de respaldo.',
+                technicalDetails: [
+                    'Carga automática diaria de tipos de cambio Banxico.',
+                    'Arrastre automático de tasa del viernes para sáb/dom/feriados.',
+                    'Precisión de 4 decimales calculados internamente para minimizar redondeo.',
+                    'Auditoría constante de variaciones visuales vs. representación SAT.'
+                ]
+            },
+            {
+                id: 'odoo-v19',
+                title: 'Motor Odoo v19 Custom',
+                category: 'ODOO',
+                x: 0,
+                y: 0,
+                icon: 'cpu',
+                description: 'Cerebro del Sistema financiero optimizado para NBG México.',
+                technicalDetails: [
+                    'Captura y almacenamiento de FX al momento de contabilizar.',
+                    'Desarrollo a medida para evitar promedios ponderados nocivos.',
+                    'Gestión de P/G cambiaria realizada automáticamente en pagos.',
+                    'Optimización de rendimiento para consultas de años completos.'
+                ]
+            },
+            {
+                id: 'balance-sheet',
+                title: 'Balance General Unificado',
+                category: 'CORE',
+                x: 0,
+                y: 500,
+                icon: 'scale',
+                description: 'Situación financiera con exclusión estratégica de revaluación.',
+                technicalDetails: [
+                    'Mantenimiento de activos e inventarios a tasa de reconocimiento inicial.',
+                    'Pasivos por ROU (Leasing) congelados para evitar fluctuaciones USD.',
+                    'Exclusión manual de revaluación uniforme en cuentas específicas.',
+                    'Aprobado por auditoría interna para reporteo internacional.'
+                ]
+            },
+            {
+                id: 'modulo-usd',
+                title: 'Módulo de Contabilidad USD',
+                category: 'USD',
+                x: 900,
+                y: -400,
+                icon: 'dollar-sign',
+                description: 'Reporteo consolidado para corporativo en EE. UU. con integridad histórica.',
+                technicalDetails: [
+                    'Visibilidad exacta en dólares (USD) para auditores externos.',
+                    'Conversión por línea de movimiento basada en FX diario.',
+                    'Reporteo de doble columna (MXN | USD) lado a lado.',
+                    'Evita la distorsión por tasa terminal de cierre de periodo.'
+                ]
+            },
+            {
+                id: 'p-l-report',
+                title: 'Estado de Resultados Multimoneda',
+                category: 'CORE',
+                x: 900,
+                y: 400,
+                icon: 'bar-chart-3',
+                description: 'Estado de resultados dinámico que respeta la tasa histórica por día.',
+                technicalDetails: [
+                    'Eliminación del sesgo: Cada movimiento usa su FX del día.',
+                    'Prevención de variaciones acumuladas por volumen transaccional.',
+                    'Vista dual configurable: Transacciones MXN con su equivalente USD real.',
+                    'Validación de integridad histórica vs. reporte nativo de Odoo.'
+                ],
+                alert: 'Crítico: La gestión nativa de Odoo distorsiona valores históricos al final del mes.'
+            }
+        ];
+
+        const NEXT_STEPS = [
+            'Agendar reunión con Hugo (Auditor) para mapeo Excel/Odoo.',
+            'Enviar solicitud formal de cuentas con FX fijo (Inv, FA, ROU).',
+            'Definir matriz de redondeo (SAT 2 decimales vs Odoo 4).',
+            'Test de revaluación histórica de activos (Depreciación Lineal).'
+        ];
+
+        createApp({
+            setup() {
+                const searchQuery = ref('');
+                const selectedNode = ref(null);
+                const showNextSteps = ref(false);
+                const is3D = ref(false);
+                const viewport = ref(null);
+                const canvas = ref(null);
+                const nextSteps = ref(NEXT_STEPS);
+
+                const currentScale = ref(0.6);
+                const currentX = ref(0);
+                const currentY = ref(0);
+
+                const filteredNodes = computed(() => {
+                    const query = searchQuery.value.toLowerCase();
+                    if (!query) return NBG_ACCOUNTING_DATA;
+                    return NBG_ACCOUNTING_DATA.filter(n => 
+                        n.title.toLowerCase().includes(query) || 
+                        n.category.toLowerCase().includes(query) ||
+                        n.description.toLowerCase().includes(query)
+                    );
+                });
+
+                const initLucide = () => {
+                    lucide.createIcons();
+                };
+
+                const updateTransform = () => {
+                    gsap.to(canvas.value, {
+                        x: currentX.value,
+                        y: currentY.value,
+                        scale: currentScale.value,
+                        duration: 0.8,
+                        ease: "power2.out"
+                    });
+                };
+
+                const zoom = (delta) => {
+                    currentScale.value = Math.max(0.1, Math.min(2.5, currentScale.value + delta));
+                    updateTransform();
+                };
+
+                const resetView = () => {
+                    currentX.value = 0;
+                    currentY.value = 0;
+                    currentScale.value = 0.6;
+                    updateTransform();
+                };
+
+                const goTo = (x, y) => {
+                    currentX.value = -x * currentScale.value;
+                    currentY.value = -y * currentScale.value;
+                    updateTransform();
+                };
+
+                onMounted(() => {
+                    initLucide();
+                    updateTransform();
+
+                    // Drag system
+                    Draggable.create(canvas.value, {
+                        type: "x,y",
+                        onDrag: function() {
+                            currentX.value = this.x;
+                            currentY.value = this.y;
+                        },
+                        trigger: viewport.value
+                    });
+
+                    // Initial focus animation
+                    gsap.from(canvas.value, {
+                        opacity: 0,
+                        scale: 0.2,
+                        duration: 1.5,
+                        ease: "expo.out"
+                    });
+                });
+
+                // Re-init icons when filtered
+                watch(filteredNodes, () => {
+                    setTimeout(initLucide, 0);
+                });
+
+                // Re-init icons when opening modal
+                watch(selectedNode, (val) => {
+                    if (val) setTimeout(initLucide, 0);
+                    if (val) {
+                        // Center on selected node
+                        goTo(val.x, val.y);
+                    }
+                });
+
+                return {
+                    searchQuery,
+                    selectedNode,
+                    showNextSteps,
+                    is3D,
+                    viewport,
+                    canvas,
+                    nextSteps,
+                    filteredNodes,
+                    zoom,
+                    resetView,
+                    goTo
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
